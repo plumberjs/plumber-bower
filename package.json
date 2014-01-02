@@ -1,0 +1,32 @@
+{
+  "name": "plumber-bower",
+  "version": "0.1.0",
+  "description": "Operation to source files from Bower components for Plumber pipelines",
+  "main": "index",
+  "dependencies": {
+    "plumber": "~0.1.1",
+    "plumber-glob": "~0.1.0",
+    "q": "~0.9.7",
+    "flatten": "0.0.1",
+    "bower": "~1.2.8",
+    "extend": "~1.2.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/theefer/plumber-bower.git"
+  },
+  "keywords": [
+    "build",
+    "assets",
+    "pipeline",
+    "plumber"
+  ],
+  "author": "Sébastien Cevey <seb@cine7.net>",
+  "license": "GPL",
+  "bugs": {
+    "url": "https://github.com/theefer/plumber-bower/issues"
+  }
+}
