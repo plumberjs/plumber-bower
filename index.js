@@ -31,8 +31,11 @@ function bowerPaths(moduleName, config) {
 function bowerDirectory(moduleName, config) {
     return bowerList({relative: false}, config).then(function(config) {
         var module = config.dependencies[moduleName];
-        // FIXME: if missing?
-        return module.canonicalDir;
+        if (module) {
+            return module.canonicalDir;
+        } else {
+            throw new Error('Bower module not found: ' + moduleName);
+        }
     });
 }
 
