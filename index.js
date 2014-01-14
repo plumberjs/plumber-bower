@@ -28,11 +28,29 @@ function bowerPaths(moduleName, config) {
     });
 }
 
+// Recursively walk the tree of module dependencies to find one
+// matching moduleName and return its canonicalDir
+function findCanonicalDir(dependencies, moduleName) {
+    var module = dependencies[moduleName];
+    if (module) {
+        return module.canonicalDir;
+    } else {
+        // slightly awkward recursion mechanism that returns the
+        // canonicalDir of the first matching module
+        var foundDir;
+        Object.keys(dependencies).some(function(name) {
+            foundDir = findCanonicalDir(dependencies[name].dependencies, moduleName);
+            return foundDir;
+        });
+        return foundDir;
+    }
+}
+
 function bowerDirectory(moduleName, config) {
     return bowerList({relative: false}, config).then(function(config) {
-        var module = config.dependencies[moduleName];
-        if (module) {
-            return module.canonicalDir;
+        var canonicalDir = findCanonicalDir(config.dependencies, moduleName);
+        if (canonicalDir) {
+            return canonicalDir;
         } else {
             throw new Error('Bower module not found: ' + moduleName);
         }
