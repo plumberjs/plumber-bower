@@ -1,11 +1,14 @@
 var appendResources = require('plumber').appendResources;
 var glob = require('plumber-glob');
 
+var fs = require('fs');
+var path = require('path');
 var q = require('q');
 var flatten = require('flatten');
 var extend = require('extend');
 var bower = require('bower');
 
+var readFile = q.denodeify(fs.readFile);
 
 function bowerList(options, config) {
   var defer = q.defer();
@@ -25,6 +28,22 @@ function bowerPaths(moduleName, config) {
     return bowerList({paths: true, relative: false}, config).then(function(map) {
         // might be string or array of string - return flat list
         return flatten([map[moduleName]]);
+    });
+}
+
+function bowerrc(directory) {
+    var rcPath = path.join(directory, '.bowerrc');
+    return readFile(rcPath, 'utf-8').then(JSON.parse).catch(function() {
+        return {};
+    });
+}
+
+function bowerConfig(directory) {
+    return bowerrc(directory).then(function(bowerrc) {
+        return {
+            cwd: directory,
+            directory: bowerrc.directory
+        };
     });
 }
 
@@ -58,18 +77,22 @@ function bowerDirectory(moduleName, config) {
 }
 
 
-function bowerOperation(config) {
+function bowerOperation(baseDirectory) {
     return function(moduleName, files) {
         return appendResources(function(supervisor) {
             var paths;
             // if files/patterns, use from component dir
             if (files) {
-                paths = bowerDirectory(moduleName, config).then(function(dir) {
+                paths = bowerConfig(baseDirectory).then(function(config) {
+                    return bowerDirectory(moduleName, config);
+                }).then(function(dir) {
                     return glob.within(dir)(files)([], supervisor);
                 });
             // else use main files (if any)
             } else {
-                paths = bowerPaths(moduleName, config).then(function(paths) {
+                paths = bowerConfig(baseDirectory).then(function(config) {
+                    return bowerPaths(moduleName, config);
+                }).then(function(paths) {
                     return glob(paths)([], supervisor);
                 });
             }
@@ -79,13 +102,10 @@ function bowerOperation(config) {
     };
 };
 
-var defaultBower = bowerOperation({});
+var defaultBower = bowerOperation(process.cwd());
 
-defaultBower.from = function(baseDirectory, componentsDirectory) {
-    return bowerOperation({
-        cwd: baseDirectory,
-        directory: componentsDirectory
-    });
+defaultBower.from = function(baseDirectory) {
+    return bowerOperation(baseDirectory);
 };
 
 module.exports = defaultBower;
