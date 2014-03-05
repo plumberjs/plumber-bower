@@ -4,7 +4,7 @@
   "description": "Operation to source files from Bower components for Plumber pipelines",
   "main": "index",
   "dependencies": {
-    "plumber": "git://github.com/plumberjs/plumber.git#highland",
+    "plumber": "~0.3.0",
     "highland": "~1.16.2",
     "bower": "~1.2.8",
     "extend": "~1.2.1"
