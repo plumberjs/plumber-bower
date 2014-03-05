@@ -1,45 +1,47 @@
-var appendResources = require('plumber').appendResources;
+var operation = require('plumber').operation;
+var Supervisor = require('plumber').Supervisor;
 var glob = require('plumber-glob');
 
+var highland = require('highland');
 var fs = require('fs');
 var path = require('path');
-var q = require('q');
-var flatten = require('flatten');
 var extend = require('extend');
 var bower = require('bower');
 
-var readFile = q.denodeify(fs.readFile);
+var readFile = highland.wrapCallback(fs.readFile);
 
 function bowerList(options, config) {
-  var defer = q.defer();
-  // TODO: API wtf, why is directory not read from config? .bowerrc
-  // not looked up relatively
-
-  bower.commands.list(options, extend({
-      offline: true
-  }, config)).on('end', function(value) {
-      defer.resolve(value);
-  });
-
-  return defer.promise;
+    // TODO: API wtf, why is directory not read from config? .bowerrc
+    // not looked up relatively
+    // FIXME: simpler way to do this in Highland?
+    return highland(function(push, next) {
+        bower.commands.list(options, extend({
+            offline: true
+        }, config)).on('end', function(value) {
+            push(null, value);
+            push(null, highland.nil);
+        });
+    });
 }
 
 function bowerPaths(moduleName, config) {
-    return bowerList({paths: true, relative: false}, config).then(function(map) {
+    return bowerList({paths: true, relative: false}, config).
+        // pick our module in the whole map
+        map(highland.get(moduleName)).
         // might be string or array of string - return flat list
-        return flatten([map[moduleName]]);
-    });
+        flatten();
 }
 
 function bowerrc(directory) {
     var rcPath = path.join(directory, '.bowerrc');
-    return readFile(rcPath, 'utf-8').then(JSON.parse).catch(function() {
-        return {};
+    return readFile(rcPath, 'utf-8').map(JSON.parse).errors(function(error, push) {
+        // If the file isn't there, we just continue with an empty map
+        push(null, {});
     });
 }
 
 function bowerConfig(directory) {
-    return bowerrc(directory).then(function(bowerrc) {
+    return bowerrc(directory).map(function(bowerrc) {
         return {
             cwd: directory,
             directory: bowerrc.directory
@@ -66,7 +68,7 @@ function findCanonicalDir(dependencies, moduleName) {
 }
 
 function bowerDirectory(moduleName, config) {
-    return bowerList({relative: false}, config).then(function(config) {
+    return bowerList({relative: false}, config).map(function(config) {
         var canonicalDir = findCanonicalDir(config.dependencies, moduleName);
         if (canonicalDir) {
             return canonicalDir;
@@ -79,25 +81,27 @@ function bowerDirectory(moduleName, config) {
 
 function bowerOperation(baseDirectory) {
     return function(moduleName, files) {
-        return appendResources(function(supervisor) {
+        // FIXME: reintroduce supervisor?
+        var supervisor = new Supervisor();
+        return operation.concat(function() {
             var paths;
             // if files/patterns, use from component dir
             if (files) {
-                paths = bowerConfig(baseDirectory).then(function(config) {
+                paths = bowerConfig(baseDirectory).flatMap(function(config) {
                     return bowerDirectory(moduleName, config);
-                }).then(function(dir) {
-                    return glob.within(dir)(files)([], supervisor);
+                }).flatMap(function(dir) {
+                    return highland([files]).flatten().map(function(file) {
+                        return path.join(dir, file);
+                    });
                 });
             // else use main files (if any)
             } else {
-                paths = bowerConfig(baseDirectory).then(function(config) {
+                paths = bowerConfig(baseDirectory).flatMap(function(config) {
                     return bowerPaths(moduleName, config);
-                }).then(function(paths) {
-                    return glob(paths)([], supervisor);
                 });
             }
 
-            return paths;
+            return paths.map(supervisor.glob.bind(supervisor)).merge();
         });
     };
 };
