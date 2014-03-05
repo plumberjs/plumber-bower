@@ -101,7 +101,7 @@ function bowerOperation(baseDirectory) {
                 });
             }
 
-            return paths.flatMap(supervisor.glob.bind(supervisor));
+            return paths.map(supervisor.glob.bind(supervisor)).merge();
         });
     };
 };
