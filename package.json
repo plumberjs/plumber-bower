@@ -4,10 +4,12 @@
   "description": "Operation to source files from Bower components for Plumber pipelines",
   "main": "index",
   "dependencies": {
-    "plumber": "~0.3.0",
     "highland": "~1.16.2",
     "bower": "~1.2.8",
     "extend": "~1.2.1"
+  },
+  "peerDependencies": {
+    "plumber": "~0.4.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
