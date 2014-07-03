@@ -1,6 +1,6 @@
 {
   "name": "plumber-bower",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Operation to source files from Bower components for Plumber pipelines",
   "main": "index",
   "dependencies": {
