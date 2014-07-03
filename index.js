@@ -1,25 +1,28 @@
 var operation = require('plumber').operation;
 var Supervisor = require('plumber').Supervisor;
-var glob = require('plumber-glob');
+var Report = require('plumber').Report;
+var Rx = require('plumber').Rx;
 
-var highland = require('highland');
 var fs = require('fs');
 var path = require('path');
 var extend = require('extend');
+var flatten = require('flatten');
 var bower = require('bower');
 
-var readFile = highland.wrapCallback(fs.readFile);
+var readFile = Rx.Node.fromNodeCallback(fs.readFile);
 
 function bowerList(options, config) {
     // TODO: API wtf, why is directory not read from config? .bowerrc
     // not looked up relatively
-    // FIXME: simpler way to do this in Highland?
-    return highland(function(push, next) {
+    // FIXME: We could use Rx.Node.fromStream is Bower didn't
+    // annoyingly send the value *with the end event* rather than in a
+    // 'data' event. *sigh*
+    return Rx.Observable.create(function(observer) {
         bower.commands.list(options, extend({
             offline: true
         }, config)).on('end', function(value) {
-            push(null, value);
-            push(null, highland.nil);
+            observer.onNext(value);
+            observer.onCompleted();
         });
     });
 }
@@ -27,16 +30,22 @@ function bowerList(options, config) {
 function bowerPaths(moduleName, config) {
     return bowerList({paths: true, relative: false}, config).
         // pick our module in the whole map
-        map(highland.get(moduleName)).
-        // might be string or array of string - return flat list
-        flatten();
+        pluck(moduleName).
+        // might be string or array of string - flatten list
+        flatMap(function(paths) {
+            if (paths) {
+                return Rx.Observable.fromArray(flatten([paths]));
+            } else {
+                return Rx.Observable.throw(new Error('Bower module not found: ' + moduleName));
+            }
+        });
 }
 
 function bowerrc(directory) {
     var rcPath = path.join(directory, '.bowerrc');
-    return readFile(rcPath, 'utf-8').map(JSON.parse).errors(function(error, push) {
+    return readFile(rcPath, 'utf-8').map(JSON.parse).catch(function(error, push) {
         // If the file isn't there, we just continue with an empty map
-        push(null, {});
+        return Rx.Observable.return({});
     });
 }
 
@@ -68,12 +77,13 @@ function findCanonicalDir(dependencies, moduleName) {
 }
 
 function bowerDirectory(moduleName, config) {
-    return bowerList({relative: false}, config).map(function(config) {
+    return bowerList({relative: false}, config).flatMap(function(config) {
         var canonicalDir = findCanonicalDir(config.dependencies, moduleName);
         if (canonicalDir) {
-            return canonicalDir;
+            return Rx.Observable.return(canonicalDir);
         } else {
-            throw new Error('Bower module not found: ' + moduleName);
+            // FIXME: can we just throw and Rx catches it instead?
+            return Rx.Observable.throw(new Error('Bower module not found: ' + moduleName));
         }
     });
 }
@@ -90,7 +100,7 @@ function bowerOperation(baseDirectory) {
                 paths = bowerConfig(baseDirectory).flatMap(function(config) {
                     return bowerDirectory(moduleName, config);
                 }).flatMap(function(dir) {
-                    return highland([files]).flatten().map(function(file) {
+                    return Rx.Observable.fromArray(flatten(files)).map(function(file) {
                         return path.join(dir, file);
                     });
                 });
@@ -101,7 +111,9 @@ function bowerOperation(baseDirectory) {
                 });
             }
 
-            return paths.map(supervisor.glob.bind(supervisor)).merge();
+            // TODO: if error, transform to report?
+
+            return paths.map(supervisor.glob.bind(supervisor)).mergeAll();
         });
     };
 };
