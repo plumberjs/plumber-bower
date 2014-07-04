@@ -93,14 +93,14 @@ function bowerOperation(baseDirectory) {
     return function(moduleName, files) {
         // FIXME: reintroduce supervisor?
         var supervisor = new Supervisor();
-        return operation.concat(function() {
+        return operation.concatAll(function() {
             var paths;
             // if files/patterns, use from component dir
             if (files) {
                 paths = bowerConfig(baseDirectory).flatMap(function(config) {
                     return bowerDirectory(moduleName, config);
                 }).flatMap(function(dir) {
-                    return Rx.Observable.fromArray(flatten(files)).map(function(file) {
+                    return Rx.Observable.fromArray(flatten([files])).map(function(file) {
                         return path.join(dir, file);
                     });
                 });
