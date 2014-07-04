@@ -43,7 +43,7 @@ function bowerPaths(moduleName, config) {
 
 function bowerrc(directory) {
     var rcPath = path.join(directory, '.bowerrc');
-    return readFile(rcPath, 'utf-8').map(JSON.parse).catch(function(error, push) {
+    return readFile(rcPath, 'utf-8').map(JSON.parse).catch(function() {
         // If the file isn't there, we just continue with an empty map
         return Rx.Observable.return({});
     });
